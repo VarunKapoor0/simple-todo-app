@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Todo App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <!-- Header -->
+        <header class="mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Simple Todo App</h1>
+            <p class="text-gray-600">A clean, keyboard-driven todo manager</p>
+        </header>
+
+        <!-- Add Todo Form -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <form id="add-todo-form" class="flex gap-2">
+                <input
+                    type="text"
+                    id="todo-input"
+                    placeholder="What needs to be done?"
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autofocus
+                />
+                <button
+                    type="submit"
+                    class="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                >
+                    Add
+                </button>
+            </form>
+        </div>
+
+        <!-- Todos List -->
+        <div class="bg-white rounded-lg shadow-sm">
+            <div id="todos-container" class="divide-y divide-gray-200">
+                <!-- Todos will be inserted here dynamically -->
+            </div>
+            <div id="empty-state" class="p-8 text-center text-gray-400 hidden">
+                <p>No todos yet. Add one above to get started!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/todos';
+        const todoInput = document.getElementById('todo-input');
+        const addTodoForm = document.getElementById('add-todo-form');
+        const todosContainer = document.getElementById('todos-container');
+        const emptyState = document.getElementById('empty-state');
+
+        // Load todos on page load
+        async function loadTodos() {
+            try {
+                const response = await fetch(API_BASE);
+                const todos = await response.json();
+                renderTodos(todos);
+            } catch (error) {
+                console.error('Error loading todos:', error);
+            }
+        }
+
+        // Render todos to the DOM
+        function renderTodos(todos) {
+            if (todos.length === 0) {
+                todosContainer.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            todosContainer.innerHTML = todos.map(todo => `
+                <div class="p-4 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+                    <input
+                        type="checkbox"
+                        ${todo.completed ? 'checked' : ''}
+                        onchange="toggleTodo(${todo.id}, this.checked)"
+                        class="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span class="flex-1 ${todo.completed ? 'line-through text-gray-400' : 'text-gray-800'}">
+                        ${escapeHtml(todo.description)}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // Add a new todo
+        async function addTodo(description) {
+            try {
+                const response = await fetch(API_BASE, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ description })
+                });
+
+                if (response.ok) {
+                    todoInput.value = '';
+                    await loadTodos();
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to add todo');
+                }
+            } catch (error) {
+                console.error('Error adding todo:', error);
+                alert('Failed to add todo');
+            }
+        }
+
+        // Toggle todo completion
+        async function toggleTodo(id, completed) {
+            try {
+                const response = await fetch(`${API_BASE}/${id}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ completed })
+                });
+
+                if (response.ok) {
+                    await loadTodos();
+                } else {
+                    alert('Failed to update todo');
+                    await loadTodos(); // Reload to reset state
+                }
+            } catch (error) {
+                console.error('Error updating todo:', error);
+                alert('Failed to update todo');
+                await loadTodos();
+            }
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Form submit handler
+        addTodoForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const description = todoInput.value.trim();
+            if (description) {
+                addTodo(description);
+            }
+        });
+
+        // Make toggleTodo available globally for inline onclick
+        window.toggleTodo = toggleTodo;
+
+        // Initial load
+        loadTodos();
+    </script>
+</body>
+</html>
